@@ -1,0 +1,14 @@
+.{
+    .name = .zcrypto,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.16.0",
+    .fingerprint = 0xc9ed93d85965203,
+    .description = "Thin, ergonomic wrappers over std.crypto -- CSPRNG, hashing, HMAC, AEAD, Argon2id password hashing",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src/",
+        "README.md",
+    },
+    .dependencies = .{},
+}
