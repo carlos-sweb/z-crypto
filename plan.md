@@ -91,3 +91,12 @@ no encontrarlos disponibles por accidente en `z-crypto`:
 - **RC4** — sesgos estadísticos explotables en el keystream.
 - **Modo ECB** (en cualquier cifrador de bloque) — filtra patrones del
   plaintext, no debe existir como modo seleccionable.
+
+**Nota sobre HMAC-SHA1** (añadida en la Fase 4): la exclusión de SHA-1
+de arriba es como *hash de propósito general* (resistencia a colisiones
+rota). HMAC no depende de esa propiedad de la misma forma — por eso
+HMAC-SHA1 sigue estandarizado para MACs/KDFs (PBKDF2-HMAC-SHA1, TLS 1.2)
+y es exactamente lo que RFC 4226/6238 exigen para TOTP/HOTP, igual que
+cualquier app autenticadora real (Google Authenticator, Authy). `z-crypto`
+expone `hmac.hmacSha1` únicamente para ese caso — no expone SHA-1 como
+hash suelto en `hash.zig`.

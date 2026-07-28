@@ -16,6 +16,9 @@ pub fn build(b: *std.Build) void {
         "tests/hmac_test.zig",
         "tests/aead_test.zig",
         "tests/password_test.zig",
+        "tests/base32_test.zig",
+        "tests/totp_test.zig",
+        "tests/jws_test.zig",
     };
 
     inline for (test_files) |test_file| {

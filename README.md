@@ -1,8 +1,8 @@
 # z-crypto
 
 Thin, ergonomic wrappers over `std.crypto` — CSPRNG, hashing, HMAC,
-authenticated encryption, and Argon2id password hashing. Pure Zig, zero
-dependencies beyond `std`.
+authenticated encryption, Argon2id password hashing, base32, TOTP/HOTP,
+and compact JWS (HS256). Pure Zig, zero dependencies beyond `std`.
 
 ## Why a wrapper at all
 
@@ -61,6 +61,16 @@ pub fn main(init: std.process.Init) !void {
 
     // CSPRNG
     const token = try zcrypto.random.randomString(allocator, io, 24, null);
+
+    // TOTP (RFC 6238) -- 2FA compatible with Google Authenticator/Authy
+    const secret = try zcrypto.base32.decodeAlloc(allocator, "JBSWY3DPEHPK3PXP");
+    var code_buf: [6]u8 = undefined;
+    const code = zcrypto.totp.totpNow(secret, io, 30, 6, &code_buf);
+
+    // Compact JWS (HS256) -- header/payload are caller-serialized JSON
+    const token_jws = try zcrypto.jws.sign(allocator, "{\"alg\":\"HS256\"}", "{\"sub\":\"1\"}", "jwt-key");
+    const verified = try zcrypto.jws.verify(allocator, token_jws, "jwt-key");
+    defer verified.deinit(allocator);
 }
 ```
 
@@ -97,11 +107,40 @@ pub fn main(init: std.process.Init) !void {
 - `verify(allocator, io, phc_str, password) !bool` — `false` for a wrong
   password, an error only for a malformed string or OOM
 
+### `base32`
+- `encodeAlloc(allocator, data) ![]u8`, `decodeAlloc(allocator, encoded) ![]u8`
+  — RFC 4648, uppercase alphabet; decode tolerates missing `=` padding
+  and lowercase input (how TOTP secrets are usually shown)
+
+### `totp`
+- `hotp(secret, counter, digits, buf) []const u8` — RFC 4226, zero-padded
+  into a caller buffer (a bare integer would silently drop leading zeros)
+- `totp(secret, unix_time, step_seconds, digits, buf) []const u8` — RFC 6238
+- `totpNow(secret, io, step_seconds, digits, buf) []const u8` — reads the
+  real clock via `std.Io.Clock.real`
+- `verifyTotp(secret, code, unix_time, step_seconds, digits, window) bool`
+  — `window` steps of clock-drift tolerance either side
+
+HMAC-SHA1, not the excluded raw-SHA1 hash — see `hmac.zig`'s doc comment
+and `plan.md`'s exclusion list for why that's not a contradiction.
+
+### `jws`
+- `sign(allocator, header_json, payload_json, key) ![]u8` — compact JWS,
+  HS256 only
+- `verify(allocator, token, key) !Verified` (`.header_json`/
+  `.payload_json`, caller-freed via `.deinit(allocator)`) —
+  `error.InvalidSignature`/`error.MalformedToken`
+
+Signing mechanics only, no claim validation (`exp`/`aud`/...) — that
+needs a JSON parser, which `z-crypto` deliberately doesn't depend on.
+Named `jws`, not `jwt`, to be honest about that boundary.
+
 ## Roadmap
 
-Step 2 of a 4-phase plan: [`z-uuid`](https://github.com/carlos-sweb/z-uuid)
-(UUID v4/v7) shipped first. Next is wiring both into
-[`z-run`](https://github.com/carlos-sweb/z-run)'s `os` global as a nested
-`os.crypto.*` namespace. Deliberately out of scope for now: more AEAD
-ciphers (AES-GCM, plain ChaCha20-Poly1305), configurable Argon2 params,
-and higher-level protocols (JWT, TOTP/HOTP, key wrapping).
+4-phase plan, all shipped: [`z-uuid`](https://github.com/carlos-sweb/z-uuid)
+(UUID v4/v7), this repo (phase 2 core primitives + phase 4 TOTP/JWS), and
+[`z-run`](https://github.com/carlos-sweb/z-run)'s `os.crypto.*` wiring
+(phase 3). Deliberately out of scope: more AEAD ciphers (AES-GCM, plain
+ChaCha20-Poly1305), configurable Argon2 params, AES-KW key wrapping
+(envelope encryption is already just `aead.encrypt` with a KEK), JWS
+algorithms other than HS256, and full JWT claim validation.
